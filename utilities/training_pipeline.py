@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""This file contains all methods used for machine learning pipelines."""
+"""This file contains all methods used for training pipelines."""
 
 import torch
 

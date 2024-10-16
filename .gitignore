@@ -1,7 +1,6 @@
 # Project specific
-checkpoints/
 data/
-tutorials/saved_models/
+saved_models/
 tutorials/html/
 
 # Byte-compiled / optimized / DLL files

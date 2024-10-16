@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""This file has an example training pipeline from start to finish using the FashionMNIST data."""
+
 import sys
 
 import torch
@@ -7,7 +12,7 @@ from torchvision import datasets
 from torchvision.transforms import ToTensor
 
 sys.path.append("../")
-from utilities.pipeline import execute_model_optimization
+from utilities.training_pipeline import execute_model_optimization
 
 # Download training data from open datasets.
 training_data = datasets.FashionMNIST(
