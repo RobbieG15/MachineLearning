@@ -3,6 +3,8 @@
 
 """This file contains all methods used for training pipelines."""
 
+import time
+
 import torch
 
 
@@ -17,6 +19,7 @@ def execute_model_optimization(
     early_stop=None,
     save=True,
     model_path="models/model.pth",
+    test_type="regular",
     quiet=True,
 ):
     """
@@ -34,8 +37,10 @@ def execute_model_optimization(
                                     does not decrease in that amount of epochs. Defaults to no early stopping.
         save (bool, optional): Whether or not to save the best performing model as the optimization goes. Defaults to True.
         model_path (str, optional): Where to save model to if save is True. Defaults to "models/model.pth".
+        test_type (str, optional): The type of testing framework to use. Choices are "regular" or "unet".
         quiet (bool, optional): Whether or not to supress output during model optimization. Defaults to True.
     """
+    start_time = time.time()
     current_stop = early_stop if early_stop is not None else -1
     min_test_average_loss = None
     previous_test_average_loss = -1
@@ -43,7 +48,14 @@ def execute_model_optimization(
         if not quiet:
             print(f"Epoch {t+1}\n-------------------------------")
         train_loss = train(train_dataloader, model, loss_fn, optimizer, device)
-        test_accuracy, test_average_loss = test(test_dataloader, model, loss_fn, device)
+        if test_type == "unet":
+            test_accuracy, test_average_loss = unet_test(
+                test_dataloader, model, loss_fn, device
+            )
+        else:
+            test_accuracy, test_average_loss = test(
+                test_dataloader, model, loss_fn, device
+            )
         if min_test_average_loss is None:
             min_test_average_loss = test_average_loss
         if not quiet:
@@ -66,8 +78,10 @@ def execute_model_optimization(
         previous_test_average_loss = test_average_loss
         if not quiet:
             print("-------------------------------\n")
+        torch.cuda.empty_cache()
     if not quiet:
-        print("Done!")
+        elapsed_time = time.time() - start_time
+        print(f"Finished in {round(elapsed_time, 2)}s")
 
 
 def train(dataloader, model, loss_fn, optimizer, device) -> float:
@@ -104,6 +118,43 @@ def train(dataloader, model, loss_fn, optimizer, device) -> float:
     return final_loss
 
 
+def unet_test(dataloader, model, loss_fn, device) -> tuple[float, float]:
+    """
+    Test a model using a given dataset, loss function, and device to test on.
+
+    Args:
+        dataloader (torch.utils.data.DataLoader): The dataloader holding the dataset.
+        model (nn.Module): The model to test on.
+        loss_fn (nn.{loss_fn}): The loss function to test on.
+        device (str): The device to test on.
+
+    Returns:
+        tuple[float, float]: The accuracy as a percentage and the test loss.
+    """
+    num_batches = len(dataloader)
+    model.eval()
+    test_loss, correct = 0, 0
+    total_pixels = 0
+    with torch.no_grad():
+        for X, y in dataloader:
+            X, y = X.to(device), y.to(device)
+            pred = model(X)
+            test_loss += loss_fn(pred, y).item()
+            pred_classes = pred.argmax(dim=1)
+            y = y.squeeze(1)
+
+            correct_batch = (pred_classes == y).type(torch.float).sum().item()
+            # Total pixels in the current batch
+            batch_pixels = y.numel()
+
+            # Accumulate correct predictions and total pixels
+            correct += correct_batch
+            total_pixels += batch_pixels
+    test_loss /= num_batches
+    accuracy = (float(correct) / float(total_pixels)) * 100
+    return (accuracy, test_loss)
+
+
 def test(dataloader, model, loss_fn, device, quiet=True) -> tuple[float, float]:
     """
     Test a model using a given dataset, loss function, and device to test on.
@@ -128,7 +179,7 @@ def test(dataloader, model, loss_fn, device, quiet=True) -> tuple[float, float]:
             test_loss += loss_fn(pred, y).item()
             correct += (pred.argmax(1) == y).type(torch.float).sum().item()
     test_loss /= num_batches
-    correct /= size
+    correct /= float(size)
     return (correct * 100, test_loss)
 
 
